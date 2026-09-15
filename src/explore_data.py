@@ -98,3 +98,7 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 print("Training set:", X_train.shape)
 print("Testing set:", X_test.shape)
+
+model = LinearRegression()
+model.fit(X_train, y_train)
+predictions = model.predict(X_test)
