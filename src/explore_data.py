@@ -192,3 +192,46 @@ print("Mean Absolute Error:", mae)
 print("Mean Squared Error:", mse)
 print("Root Mean Squared Error:", rmse)
 print("R-squared:", r2)
+
+# display the model's intercept.
+# this is the predicted academcic development value
+# when all predictor variables are equal to zero
+
+print("\nModel Intercept:")
+print(model.intercept_)
+
+# display the coefficient for each predictor.
+# each coefficient represents the predicted change in
+# academic development associated with a one-unit
+# increase in that predictor, while holding the other
+# predictors constant. 
+print("\nModel Coefficients:")
+
+for feature, coefficient in zip(X.columns, model.coef_):
+    print(feature, ":", coefficient)
+
+
+# create a table comparing the actual Academic Development
+# values with the values predicted by our model.
+results = pd.DataFrame({
+    "Actual": y_test,
+    "Predicted": predictions
+})
+
+# display the first 10 actual and predicted values.
+print("\nActual vs. Predicted:")
+print(results.head(10))
+
+
+# plot actual values against the model's predicted values.
+plt.scatter(y_test, predictions)
+
+# label the axes.
+plt.xlabel("Actual Academic Development")
+plt.ylabel("Predicted Academic Development")
+
+# add a title.
+plt.title("Actual vs. Predicted Academic Development")
+
+# display the plot.
+plt.show()
