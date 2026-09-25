@@ -232,6 +232,52 @@ print(f"Linear Regression lower RMSE: {lr_lower_rmse}/{n_splits} splits")
 print(f"Linear Regression higher R²:  {lr_higher_r2}/{n_splits} splits")
 
 
+# create a controls-only model to see what changes when
+# AI Use Frequency is removed. it uses the same target and the
+# same observations, but only the two control variables
+X_controls = data[[
+    "Pell Grant Recipient",
+    "First gen student"
+]]
+
+# evaluate it with the same cv object, so it is tested on the
+# same 50 train/test splits as the full model
+controls_results = cross_validate(
+    LinearRegression(),
+    X_controls,
+    y,
+    cv=cv,
+    scoring=[
+        "neg_mean_absolute_error",
+        "neg_mean_squared_error",
+        "neg_root_mean_squared_error",
+        "r2"
+    ]
+)
+
+# flip the error metrics back to positive values
+controls_mae = -controls_results["test_neg_mean_absolute_error"]
+controls_mse = -controls_results["test_neg_mean_squared_error"]
+controls_rmse = -controls_results["test_neg_root_mean_squared_error"]
+controls_r2 = controls_results["test_r2"]
+
+print("\nControls-Only Linear Regression Cross-Validation Results (no AI Use Frequency):")
+print(f"MAE:  {controls_mae.mean():.4f} ± {controls_mae.std():.4f}")
+print(f"MSE:  {controls_mse.mean():.6f} ± {controls_mse.std():.6f}")
+print(f"RMSE: {controls_rmse.mean():.4f} ± {controls_rmse.std():.4f}")
+print(f"R²:   {controls_r2.mean():.4f} ± {controls_r2.std():.4f}")
+
+# compare the full model and the controls-only model split by split
+full_lower_mae = (mae_scores < controls_mae).sum()
+full_lower_rmse = (rmse_scores < controls_rmse).sum()
+full_higher_r2 = (r2_scores > controls_r2).sum()
+
+print(f"\nFull vs. Controls-Only Comparison ({n_splits} matched CV splits):")
+print(f"Full model lower MAE:  {full_lower_mae}/{n_splits} splits")
+print(f"Full model lower RMSE: {full_lower_rmse}/{n_splits} splits")
+print(f"Full model higher R²:  {full_higher_r2}/{n_splits} splits")
+
+
 # cross-validation measures how well the model performs, but it fits
 # 50 different models. to interpret the relationships, we fit one
 # final model on all of the cleaned observations
