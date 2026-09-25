@@ -215,6 +215,23 @@ print(f"RMSE: {baseline_rmse.mean():.4f} ± {baseline_rmse.std():.4f}")
 print(f"R²:   {baseline_r2.mean():.4f} ± {baseline_r2.std():.4f}")
 
 
+# compare the two models split by split.
+# both models were evaluated with the same cv object, so position i in
+# each score array comes from the same train/test split. comparing the
+# arrays element by element gives True/False for each split, and .sum()
+# counts the number of True values
+n_splits = len(mae_scores)
+
+lr_lower_mae = (mae_scores < baseline_mae).sum()
+lr_lower_rmse = (rmse_scores < baseline_rmse).sum()
+lr_higher_r2 = (r2_scores > baseline_r2).sum()
+
+print(f"\nModel Comparison ({n_splits} matched CV splits):")
+print(f"Linear Regression lower MAE:  {lr_lower_mae}/{n_splits} splits")
+print(f"Linear Regression lower RMSE: {lr_lower_rmse}/{n_splits} splits")
+print(f"Linear Regression higher R²:  {lr_higher_r2}/{n_splits} splits")
+
+
 # cross-validation measures how well the model performs, but it fits
 # 50 different models. to interpret the relationships, we fit one
 # final model on all of the cleaned observations
