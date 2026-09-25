@@ -108,15 +108,14 @@ plt.title("Correlation Matrix")
 # display heatmap
 plt.show()
 
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import RepeatedKFold, KFold, cross_validate, cross_val_predict
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-import numpy as np
+from sklearn.dummy import DummyRegressor
 
 # define target variable (y) - the variable we want the model to predict
 y = data["Academic Development"]
 
-# define the predictor variables (X) - the variables 
+# define the predictor variables (X) - the variables
 # the model will use to make predictions about academic development
 X = data[[
     "AI Use Frequency",
@@ -127,111 +126,146 @@ X = data[[
 # display the first five rows of predictor variables
 print(X.head())
 
-# display the first five values of the tatrget variable
+# display the first five values of the target variable
 print(y.head())
 
 
+# set up repeated 5-fold cross-validation.
+# the data is split into 5 folds (about 63 training and 16 testing
+# observations each). every observation is used for testing exactly
+# once per round, and the whole process is repeated 10 times with
+# different shuffles, giving 5 x 10 = 50 model fits in total.
+# this is more reliable than a single 80/20 split, where the results
+# depend heavily on which 16 observations end up in the test set.
 
-# split the dataset into training and testing sets
-# 80% of observations are used to train model
-# 20% are kept separate so we can test the model on data
-# it did not see during training
+# random_state=42 makes the splits reproducible
+cv = RepeatedKFold(n_splits=5, n_repeats=10, random_state=42)
 
-# random_state=42 makes the split reproducible
-X_train, X_test, y_train, y_test = train_test_split(
+# train and test a new linear regression model on each of the 50 splits
+# and record its score on the testing fold for each metric:
+# - MAE: on average, how far predictions are from the actual values
+# - MSE: average of the squared differences between actual and predicted
+# - RMSE: square root of MSE, in the same units as academic development
+# - R²: how much of the variation in academic development the model explains
+
+# sklearn's scoring convention is "higher is better", so the
+# error metrics (MAE, MSE, RMSE) are returned as negative numbers
+cv_results = cross_validate(
+    LinearRegression(),
     X,
     y,
-    test_size=0.2,
-    random_state=42
+    cv=cv,
+    scoring=[
+        "neg_mean_absolute_error",
+        "neg_mean_squared_error",
+        "neg_root_mean_squared_error",
+        "r2"
+    ]
 )
 
+# flip the error metrics back to positive values
+mae_scores = -cv_results["test_neg_mean_absolute_error"]
+mse_scores = -cv_results["test_neg_mean_squared_error"]
+rmse_scores = -cv_results["test_neg_root_mean_squared_error"]
+r2_scores = cv_results["test_r2"]
 
-# display the number of observations in each set
-print("Training set:", X_train.shape)
-print("Testing set:", X_test.shape)
+# print the mean and standard deviation of each metric across the 50 fits.
+# the mean tells us the model's typical performance, and the standard
+# deviation tells us how much it changes depending on the split
+print("\nLinear Regression Cross-Validation Results (5 folds x 10 repeats = 50 fits):")
+print(f"MAE:  {mae_scores.mean():.4f} ± {mae_scores.std():.4f}")
+print(f"MSE:  {mse_scores.mean():.6f} ± {mse_scores.std():.6f}")
+print(f"RMSE: {rmse_scores.mean():.4f} ± {rmse_scores.std():.4f}")
+print(f"R²:   {r2_scores.mean():.4f} ± {r2_scores.std():.4f}")
 
-# create a linear regression model
+
+# create a baseline model to compare against.
+# the dummy regressor does not use the predictor variables. in each
+# cross-validation split, it predicts the same value for every test
+# observation: the mean academic development of that split's training data.
+# its scores provide a reference point for the linear regression scores
+baseline = DummyRegressor(strategy="mean")
+
+# evaluate the baseline with the same cross-validation splits
+# and the same metrics as the linear regression model
+baseline_results = cross_validate(
+    baseline,
+    X,
+    y,
+    cv=cv,
+    scoring=[
+        "neg_mean_absolute_error",
+        "neg_mean_squared_error",
+        "neg_root_mean_squared_error",
+        "r2"
+    ]
+)
+
+# flip the error metrics back to positive values
+baseline_mae = -baseline_results["test_neg_mean_absolute_error"]
+baseline_mse = -baseline_results["test_neg_mean_squared_error"]
+baseline_rmse = -baseline_results["test_neg_root_mean_squared_error"]
+baseline_r2 = baseline_results["test_r2"]
+
+# print the baseline results
+print("\nBaseline Model (predicts the mean) Cross-Validation Results:")
+print(f"MAE:  {baseline_mae.mean():.4f} ± {baseline_mae.std():.4f}")
+print(f"MSE:  {baseline_mse.mean():.6f} ± {baseline_mse.std():.6f}")
+print(f"RMSE: {baseline_rmse.mean():.4f} ± {baseline_rmse.std():.4f}")
+print(f"R²:   {baseline_r2.mean():.4f} ± {baseline_r2.std():.4f}")
+
+
+# cross-validation measures how well the model performs, but it fits
+# 50 different models. to interpret the relationships, we fit one
+# final model on all of the cleaned observations
 model = LinearRegression()
-
-# train the model using the training data.
-# the model learns how the predictor variables (X_train)
-# relate to the target variable (y_train)
-model.fit(X_train, y_train)
-
-# use the trained model to predict academic development
-# for the observations in the testing set
-predictions = model.predict(X_test)
-
-# calculate the mean absolute error (MAE)
-# this tells, on average, how far the model's predictions
-# are from the actual academic development values 
-
-mae = mean_absolute_error(y_test, predictions)
-
-# calculate the mean squared error (MSE).
-# this measures prediction error by squaring the differences
-# between the actual and predicted values.
-
-mse = mean_squared_error(y_test, predictions)
-
-# calculate the Root Mean Squared Error (RMSE).
-# RMSE is the square root of MSE and is expressed
-# in the same units as Academic Development.
-rmse = np.sqrt(mse)
-
-
-# calculate R-squared (R²).
-# R² measures how much of the variation in Academic Development
-# is explained by the variables in our linear regression model.
-r2 = r2_score(y_test, predictions)
-
-
-# print the model's evaluation results.
-print("\nModel Evaluation:")
-print("Mean Absolute Error:", mae)
-print("Mean Squared Error:", mse)
-print("Root Mean Squared Error:", rmse)
-print("R-squared:", r2)
+model.fit(X, y)
 
 # display the model's intercept.
-# this is the predicted academcic development value
+# this is the predicted academic development value
 # when all predictor variables are equal to zero
-
-print("\nModel Intercept:")
+print("\nModel Intercept (fitted on full dataset):")
 print(model.intercept_)
 
 # display the coefficient for each predictor.
 # each coefficient represents the predicted change in
 # academic development associated with a one-unit
 # increase in that predictor, while holding the other
-# predictors constant. 
-print("\nModel Coefficients:")
+# predictors constant.
+print("\nModel Coefficients (fitted on full dataset):")
 
 for feature, coefficient in zip(X.columns, model.coef_):
     print(feature, ":", coefficient)
 
 
+# get an out-of-fold prediction for every observation.
+# the data is split into 5 folds, and each observation is predicted
+# by a model that was trained on the other 4 folds (so it never saw
+# that observation during training)
+kfold = KFold(n_splits=5, shuffle=True, random_state=42)
+predictions = cross_val_predict(LinearRegression(), X, y, cv=kfold)
+
 # create a table comparing the actual Academic Development
-# values with the values predicted by our model.
+# values with the out-of-fold predicted values.
 results = pd.DataFrame({
-    "Actual": y_test,
+    "Actual": y,
     "Predicted": predictions
 })
 
 # display the first 10 actual and predicted values.
-print("\nActual vs. Predicted:")
+print("\nActual vs. Predicted (out-of-fold):")
 print(results.head(10))
 
 
-# plot actual values against the model's predicted values.
-plt.scatter(y_test, predictions)
+# plot actual values against the out-of-fold predicted values.
+plt.scatter(y, predictions)
 
 # label the axes.
 plt.xlabel("Actual Academic Development")
 plt.ylabel("Predicted Academic Development")
 
 # add a title.
-plt.title("Actual vs. Predicted Academic Development")
+plt.title("Actual vs. Predicted Academic Development (Out-of-Fold)")
 
 # display the plot.
 plt.show()
